@@ -66,11 +66,12 @@ exports.handler = async (event) => {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        secret,
-        sheet: data.sheet,
-        rows: data.rows
-      }),
+body: JSON.stringify({
+  secret,
+  sheet: data.sheet,
+  headers: data.headers,
+  rows: data.rows
+}),
       redirect: 'follow'
     });
 
