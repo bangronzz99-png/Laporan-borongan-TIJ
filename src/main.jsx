@@ -107,6 +107,47 @@ async function preparePayments(){
  }
  async function removeReport(id){if(!confirm('Hapus laporan ini?'))return;const {error}=await supabase.from('reports').delete().eq('id',id);if(error)setError(error.message);else{setNotice('Laporan dihapus.');await loadRows(admin);}}
  async function toggleMember(m){const {error}=await supabase.from('profiles').update({active:!m.active}).eq('id',m.id);if(error)setError(error.message);else await loadMembers();}
+ 
+async function sendToSheets(sheet, headers, rowsToSend) {
+  if (!admin || !session?.access_token) {
+    setError('Hanya admin yang bisa mengirim data.');
+    return;
+  }
+
+  if (!rowsToSend.length) {
+    setError('Tidak ada data untuk dikirim.');
+    return;
+  }
+
+  setError('');
+  setNotice('');
+
+  try {
+    const response = await fetch('/.netlify/functions/send-to-sheets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        sheet,
+        headers,
+        rows: rowsToSend
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Pengiriman gagal.');
+    }
+
+    setNotice('Berhasil mengirim ' + rowsToSend.length + ' baris ke Google Sheets: ' + sheet);
+  } catch (err) {
+    setError(err.message);
+  }
+}
+
  const total=rows.reduce((s,r)=>s+Number(r.bag_count||0)*Number(r.unit_price||0),0);
  const recapRange=(()=>{const d=new Date(recapDate+'T00:00:00');let start=new Date(d),end=new Date(d);if(recapPeriod==='week'){const day=(d.getDay()+6)%7;start.setDate(d.getDate()-day);end=new Date(start);end.setDate(start.getDate()+6);}else if(recapPeriod==='month'){start=new Date(d.getFullYear(),d.getMonth(),1);end=new Date(d.getFullYear(),d.getMonth()+1,0);}const fmt=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');return {start:fmt(start),end:fmt(end)};})();
  const recap=recapRows.filter(r=>r.work_date>=recapRange.start&&r.work_date<=recapRange.end).reduce((acc,r)=>{const id=r.created_by;const name=r.profiles?.display_name||'Anggota';if(!acc[id])acc[id]={id,name,reports:0,bags:0,total:0,unpriced:0};acc[id].reports++;acc[id].bags+=Number(r.bag_count||0);if(r.unit_price==null)acc[id].unpriced++;else acc[id].total+=Number(r.bag_count||0)*Number(r.unit_price||0);return acc;},{});
