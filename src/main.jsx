@@ -16,7 +16,7 @@ function App(){
  const [rows,setRows]=useState([]),[members,setMembers]=useState([]),[form,setForm]=useState(blank),[editing,setEditing]=useState(null);
  const [priceDrafts,setPriceDrafts]=useState({}),[savingPrice,setSavingPrice]=useState({});
  const [recapRows,setRecapRows]=useState([]),[recapPeriod,setRecapPeriod]=useState('month'),[recapDate,setRecapDate]=useState(new Date().toISOString().slice(0,10));
- const [paymentDate,setPaymentDate]=useState(new Date().toISOString().slice(0,10)),[paymentReports,setPaymentReports]=useState([]),[paymentRows,setPaymentRows]=useState([]),[paymentBusy,setPaymentBusy]=useState(false);
+ const [paymentDate,setPaymentDate]=useState(new Date().toISOString().slice(0,10)),[paymentReports,setPaymentReports]=useState([]),[paymentRows,setPaymentRows]=useState([]),[paymentHistory,setPaymentHistory]=useState([]),[paymentBusy,setPaymentBusy]=useState(false);
  const [tab,setTab]=useState('reports'),[filter,setFilter]=useState('all'),[memberFilter,setMemberFilter]=useState('all');
  const admin=profile?.role==='admin';
  useEffect(()=>{if(!supabase){setLoading(false);return;} supabase.auth.getSession().then(({data})=>{setSession(data.session);}).finally(()=>setLoading(false)); const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s)); return ()=>subscription.unsubscribe();},[]);
@@ -34,6 +34,16 @@ function App(){
   const {data,error}=await q;
   if(error)setError(error.message);else setPaymentRows(data||[]);
  }
+ const {data:history,error:historyError}=await supabase
+  .from('weekly_payments')
+  .select('*, profiles:member_id(display_name)')
+  .order('week_start',{ascending:false});
+
+if(historyError){
+  setError(historyError.message);
+}else{
+  setPaymentHistory(history||[]);
+}
  async function preparePayments(){
   setPaymentBusy(true);setError('');
   const grouped=paymentReports.reduce((acc,r)=>{const id=r.created_by;if(!acc[id])acc[id]={member_id:id,total:0};if(r.unit_price!=null)acc[id].total+=Number(r.bag_count||0)*Number(r.unit_price||0);return acc;},{});
@@ -100,6 +110,50 @@ function App(){
  <section className="panel"><div className="panelhead wrap"><div><h2>Riwayat laporan</h2><p className="muted">{admin?'Isi harga langsung pada kolom Harga; tersimpan otomatis saat kolom ditinggalkan.':'Laporan yang Anda kirim'}</p></div><button className="outline" onClick={()=>window.print()}><Printer size={16}/> Cetak</button></div><div className="filters"><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Semua pekerjaan</option><option value="lining">Linning / Tas Jadi</option><option value="cat">Pengecatan Cat</option></select>{admin&&<select value={memberFilter} onChange={e=>setMemberFilter(e.target.value)}><option value="all">Semua anggota</option>{members.map(m=><option key={m.id} value={m.id}>{m.display_name||m.email}</option>)}</select>}</div><div className="tablewrap"><table><thead><tr>{admin&&<th>Anggota</th>}<th>Tanggal</th><th>Jenis</th><th>Artikel</th><th>Komponen yang dikerjakan</th><th>Jumlah tas</th><th>Harga</th><th>Total</th><th>Aksi</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{admin&&<td>{r.profiles?.display_name||'Anggota'}</td>}<td>{new Date(r.work_date+'T00:00:00').toLocaleDateString('id-ID')}</td><td>{r.work_type==='lining'?'Linning / Tas Jadi':'Pengecatan Cat'}</td><td>{r.article}</td><td>{r.component}</td><td>{r.bag_count}</td><td>{admin?<div className="inline-price"><input aria-label={'Harga untuk '+(r.article||'laporan')} type="number" min="0" step="1" placeholder="Isi harga" style={{width:"120px",padding:"8px",border:"1px solid #cbd5e1",borderRadius:"8px"}} value={priceDrafts[r.id]!==undefined?priceDrafts[r.id]:(r.unit_price??'')} onChange={e=>setPriceDrafts(prev=>({...prev,[r.id]:e.target.value}))} onBlur={()=>saveInlinePrice(r.id)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}} />{savingPrice[r.id]&&<small>Menyimpan…</small>}</div>:(r.unit_price==null?'Menunggu admin':money(r.unit_price))}</td><td>{r.unit_price==null?'—':money(r.bag_count*r.unit_price)}</td><td><div className="actions"><button className="iconbtn" onClick={()=>editReport(r)} title="Edit"><Pencil size={15}/></button><button className="iconbtn danger" onClick={()=>removeReport(r.id)} title="Hapus"><Trash2 size={15}/></button></div></td></tr>)}{!rows.length&&<tr><td colSpan={admin?9:8} className="empty">Belum ada laporan.</td></tr>}</tbody></table></div></section></>}
  {admin&&tab==='recap'&&<><section className="panel"><div className="panelhead wrap"><div><h2>Rekap Borongan Anggota</h2><p className="muted">Ringkasan jumlah pekerjaan dan upah berdasarkan periode.</p></div><button className="outline" onClick={loadRecap}><RefreshCw size={16}/> Perbarui</button></div><div className="filters"><select value={recapPeriod} onChange={e=>setRecapPeriod(e.target.value)}><option value="day">Harian</option><option value="week">Mingguan</option><option value="month">Bulanan</option></select><input aria-label="Pilih tanggal acuan rekap" type="date" value={recapDate} onChange={e=>setRecapDate(e.target.value)}/><span className="muted">Periode: {new Date(recapRange.start+'T00:00:00').toLocaleDateString('id-ID')} – {new Date(recapRange.end+'T00:00:00').toLocaleDateString('id-ID')}</span></div><div className="stats"><div className="stat"><span>Anggota mengerjakan</span><b>{recapList.length}</b></div><div className="stat"><span>Total tas</span><b>{recapList.reduce((s,r)=>s+r.bags,0).toLocaleString('id-ID')}</b></div><div className="stat"><span>Total upah terhitung</span><b>{money(recapList.reduce((s,r)=>s+r.total,0))}</b></div></div><div className="tablewrap"><table><thead><tr><th>Anggota</th><th>Jumlah laporan</th><th>Jumlah tas</th><th>Total upah</th><th>Harga belum diisi</th></tr></thead><tbody>{recapList.map(r=><tr key={r.id}><td>{r.name}</td><td>{r.reports}</td><td>{r.bags.toLocaleString('id-ID')}</td><td>{money(r.total)}</td><td>{r.unpriced}</td></tr>)}{!recapList.length&&<tr><td colSpan="5" className="empty">Belum ada laporan pada periode ini.</td></tr>}</tbody></table></div><p className="tiny">Total upah hanya menghitung laporan yang harga per tasnya sudah diisi admin. Laporan tanpa harga ditampilkan pada kolom tersendiri.</p></section></>}
  {tab==='payments'&&<section className="panel"><div className="panelhead wrap"><div><h2>{admin?'Kelola Pembayaran Mingguan':'Riwayat Pembayaran Saya'}</h2><p className="muted">Periode pembayaran dihitung dari Senin sampai Minggu.</p></div><button className="outline" onClick={loadPayments}><RefreshCw size={16}/> Perbarui</button></div><div className="filters"><label htmlFor="payment-week-date">Pilih tanggal dalam minggu</label><input id="payment-week-date" type="date" value={paymentDate} onChange={e=>setPaymentDate(e.target.value)}/><span className="muted">Periode: {new Date(paymentRange.start+'T00:00:00').toLocaleDateString('id-ID')} – {new Date(paymentRange.end+'T00:00:00').toLocaleDateString('id-ID')}</span></div>{admin&&<div className="note"><b>Admin:</b> pastikan semua harga laporan pada minggu ini sudah diisi, lalu klik Siapkan Tagihan. Tagihan yang sudah berstatus lunas tidak akan dihitung ulang.</div>}{admin&&<div className="formactions"><button className="primary" disabled={paymentBusy} onClick={preparePayments}><ShieldCheck size={16}/>{paymentBusy?'Menyiapkan…':'Siapkan Tagihan Minggu Ini'}</button></div>}<div className="tablewrap"><table><thead><tr>{admin&&<th>Anggota</th>}<th>Total upah</th><th>Status</th><th>Tanggal dibayar</th>{admin&&<th>Aksi</th>}</tr></thead><tbody>{paymentRows.map(p=><tr key={p.id}>{admin&&<td>{p.profiles?.display_name||'Anggota'}</td>}<td>{money(p.total_amount)}</td><td><span className={p.status==='paid'?'status on':'status off'}>{p.status==='paid'?'Lunas':'Belum dibayar'}</span></td><td>{p.paid_at?new Date(p.paid_at).toLocaleString('id-ID'):'—'}</td>{admin&&<td>{p.status==='paid'?<button className="outline smallbtn" onClick={()=>markPayment(p,'unpaid')}>Batalkan lunas</button>:<button className="primary smallbtn" onClick={()=>markPayment(p,'paid')}>Tandai lunas</button>}</td>}</tr>)}{!paymentRows.length&&<tr><td colSpan={admin?5:3} className="empty">{admin?'Belum ada tagihan untuk minggu ini. Klik Siapkan Tagihan Minggu Ini.':'Belum ada data pembayaran untuk minggu ini.'}</td></tr>}</tbody></table></div>{!admin&&<p className="tiny">Jika status masih Belum dibayar, silakan hubungi admin untuk konfirmasi pembayaran.</p>}</section>}
+  <section className="panel">
+  <div className="panelhead">
+    <div>
+      <h2>Riwayat Pembayaran</h2>
+      <p className="muted">Daftar pembayaran dari minggu ke minggu.</p>
+    </div>
+  </div>
+
+  <div className="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          {admin&&<th>Anggota</th>}
+          <th>Minggu</th>
+          <th>Total Upah</th>
+          <th>Status</th>
+          <th>Tanggal Dibayar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {paymentHistory.map(p=><tr key={p.id}>
+          {admin&&<td>{p.profiles?.display_name||'Anggota'}</td>}
+          <td>
+            {new Date(p.week_start+'T00:00:00').toLocaleDateString('id-ID')}
+            {' – '}
+            {new Date(p.week_end+'T00:00:00').toLocaleDateString('id-ID')}
+          </td>
+          <td>{money(p.total_amount)}</td>
+          <td>
+            <span className={p.status==='paid'?'status on':'status off'}>
+              {p.status==='paid'?'Lunas':'Belum dibayar'}
+            </span>
+          </td>
+          <td>{p.paid_at?new Date(p.paid_at).toLocaleString('id-ID'):'—'}</td>
+        </tr>)}
+        {!paymentHistory.length&&<tr>
+          <td colSpan={admin?5:4} className="empty">
+            Belum ada riwayat pembayaran.
+          </td>
+        </tr>}
+      </tbody>
+    </table>
+  </div>
+</section>
  {admin&&tab==='members'&&<section className="panel"><div className="panelhead"><div><h2>Kelola anggota</h2><p className="muted">Aktifkan atau nonaktifkan akses anggota.</p></div><span className="pill">{members.length} akun</span></div><div className="tablewrap"><table><thead><tr><th>Nama</th><th>Email</th><th>Peran</th><th>Status</th><th>Aksi</th></tr></thead><tbody>{members.map(m=><tr key={m.id}><td>{m.display_name||'—'}</td><td>{m.email||'—'}</td><td>{m.role==='admin'?'Admin':'Anggota'}</td><td><span className={m.active?'status on':'status off'}>{m.active?'Aktif':'Nonaktif'}</span></td><td>{m.role!=='admin'&&<button className="outline smallbtn" onClick={()=>toggleMember(m)}>{m.active?'Nonaktifkan':'Aktifkan'}</button>}</td></tr>)}</tbody></table></div><div className="note"><b>Menambah akun anggota:</b> buka Supabase Dashboard → Authentication → Users → Add user. Masukkan email dan password sementara. Setelah akun dibuat, tambahkan profilnya melalui SQL Editor (petunjuk ada di README). Jangan membagikan password admin.</div></section>}
  <footer>© {new Date().getFullYear()} Sistem Laporan Borongan · Data tersimpan di database online</footer></main></div>
 }
