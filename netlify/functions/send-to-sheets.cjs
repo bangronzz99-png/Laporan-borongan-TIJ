@@ -3,7 +3,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      body: JSON.stringify({ success: false, message: 'Method not allowed' })
+      body: JSON.stringify({
+  secret,
+  sheet: data.sheet,
+  headers: data.headers,
+  rows: data.rows
+}),
     };
   }
 
