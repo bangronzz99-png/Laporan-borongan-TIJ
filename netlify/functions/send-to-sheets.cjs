@@ -4,11 +4,9 @@ exports.handler = async (event) => {
     return {
       statusCode: 405,
       body: JSON.stringify({
-  secret,
-  sheet: data.sheet,
-  headers: data.headers,
-  rows: data.rows
-}),
+        success: false,
+        message: 'Method not allowed'
+      })
     };
   }
 
