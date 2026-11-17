@@ -27,14 +27,23 @@ function App(){
  async function loadPayments(){
   if(!supabase||!session)return;
   const {data:reports,error:reportError}=await supabase.from('reports').select('*, profiles:created_by(display_name)').gte('work_date',paymentRange.start).lte('work_date',paymentRange.end).order('work_date');
-  if(reportError){setError(reportError.message);return;}
-  setPaymentReports(reports||[]);
-  let q=supabase.from('weekly_payments').select('*, profiles:member_id(display_name)').eq('week_start',paymentRange.start).order('created_at');
-  if(!admin)q=q.eq('member_id',session.user.id);
-  const {data,error}=await q;
-  if(error)setError(error.message);else setPaymentRows(data||[]);
- }
- const {data:history,error:historyError}=await supabase
+
+if(reportError){setError(reportError.message);return;}
+setPaymentReports(reports||[]);
+
+let q=supabase.from('weekly_payments')
+  .select('*, profiles:member_id(display_name)')
+  .eq('week_start',paymentRange.start)
+  .order('created_at');
+
+if(!admin)q=q.eq('member_id',session.user.id);
+
+const {data,error}=await q;
+if(error)setError(error.message);
+else setPaymentRows(data||[]);
+
+// RIWAYAT PEMBAYARAN
+const {data:history,error:historyError}=await supabase
   .from('weekly_payments')
   .select('*, profiles:member_id(display_name)')
   .order('week_start',{ascending:false});
@@ -44,7 +53,11 @@ if(historyError){
 }else{
   setPaymentHistory(history||[]);
 }
- async function preparePayments(){
+
+}
+
+// FUNGSI SIAPKAN PEMBAYARAN
+async function preparePayments(){
   setPaymentBusy(true);setError('');
   const grouped=paymentReports.reduce((acc,r)=>{const id=r.created_by;if(!acc[id])acc[id]={member_id:id,total:0};if(r.unit_price!=null)acc[id].total+=Number(r.bag_count||0)*Number(r.unit_price||0);return acc;},{});
   for(const item of Object.values(grouped)){
