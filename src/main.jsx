@@ -24,6 +24,134 @@ function App(){
  useEffect(()=>{(async()=>{if(!session){setProfile(null);setRows([]);return;} const {data,error}=await supabase.from('profiles').select('*').eq('id',session.user.id).single(); if(error){setError('Profil belum tersedia. Pastikan SQL database sudah dijalankan.');return;} setProfile(data); if(!data.active){await supabase.auth.signOut();setError('Akun Anda sedang dinonaktifkan admin.');return;} await loadRows(data.role==='admin'); if(data.role==='admin') await loadMembers();})();},[session]);
  async function loadRows(isAdmin=admin){if(!supabase)return;let q=supabase.from('reports').select('*, profiles:created_by(display_name)').order('work_date',{ascending:false}).order('created_at',{ascending:false});if(!isAdmin)q=q.eq('created_by',session.user.id);if(filter!=='all')q=q.eq('work_type',filter);if(isAdmin&&memberFilter!=='all')q=q.eq('created_by',memberFilter);const {data,error}=await q;if(error)setError(error.message);else setRows(data||[]);}
  async function loadRecap(){const {data,error}=await supabase.from('reports').select('*, profiles:created_by(display_name)').order('work_date',{ascending:false});if(error)setError(error.message);else setRecapRows(data||[]);}
+ 
+async function exportToExcel() {
+  if (!admin) {
+    setError('Hanya admin yang bisa mengunduh Excel.');
+    return;
+  }
+
+  setError('');
+  setNotice('');
+
+  try {
+    const { data: reports, error: reportError } = await supabase
+      .from('reports')
+      .select('*, profiles:created_by(display_name)')
+      .order('work_date', { ascending: false });
+
+    if (reportError) throw reportError;
+
+    const { data: payments, error: paymentError } = await supabase
+      .from('weekly_payments')
+      .select('*, profiles:member_id(display_name)')
+      .order('week_start', { ascending: false });
+
+    if (paymentError) throw paymentError;
+
+    const detailRows = (reports || []).map(r => ({
+      Tanggal: r.work_date,
+      'Nama Anggota': r.profiles?.display_name || 'Anggota',
+      'Jumlah Tas': Number(r.bag_count || 0),
+      'Harga Satuan': r.unit_price ?? '',
+      'Total Upah': r.unit_price == null
+        ? 0
+        : Number(r.bag_count || 0) * Number(r.unit_price || 0),
+      Status: r.unit_price == null ? 'Harga belum diisi' : 'Sudah dihargai'
+    }));
+
+    function makeSummary(period) {
+      const grouped = {};
+
+      (reports || []).forEach(r => {
+        const date = new Date(`${r.work_date}T00:00:00Z`);
+        let start, end, key;
+
+        if (period === 'week') {
+          const monday = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate()
+          ));
+          const day = monday.getUTCDay();
+          monday.setUTCDate(monday.getUTCDate() - (day === 0 ? 6 : day - 1));
+
+          const sunday = new Date(monday);
+          sunday.setUTCDate(sunday.getUTCDate() + 6);
+
+          start = monday.toISOString().slice(0, 10);
+          end = sunday.toISOString().slice(0, 10);
+          key = start;
+        } else {
+          const year = date.getUTCFullYear();
+          const month = date.getUTCMonth();
+
+          start = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+          end = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
+          key = start;
+        }
+
+        const memberId = r.created_by || 'unknown';
+        const name = r.profiles?.display_name || 'Anggota';
+        const groupKey = `${key}_${memberId}`;
+
+        if (!grouped[groupKey]) {
+          grouped[groupKey] = {
+            'Tanggal Mulai': start,
+            'Tanggal Selesai': end,
+            'Nama Anggota': name,
+            'Jumlah Laporan': 0,
+            'Jumlah Tas': 0,
+            'Total Upah': 0,
+            'Harga Belum Diisi': 0
+          };
+        }
+
+        const item = grouped[groupKey];
+        item['Jumlah Laporan']++;
+        item['Jumlah Tas'] += Number(r.bag_count || 0);
+
+        if (r.unit_price == null) {
+          item['Harga Belum Diisi']++;
+        } else {
+          item['Total Upah'] +=
+            Number(r.bag_count || 0) * Number(r.unit_price || 0);
+        }
+      });
+
+      return Object.values(grouped);
+    }
+
+    const paymentRows = (payments || []).map(p => ({
+      'Tanggal Mulai': p.week_start,
+      'Tanggal Selesai': p.week_end,
+      'Nama Anggota': p.profiles?.display_name || 'Anggota',
+      'Total Upah': Number(p.total_amount || 0),
+      Status: p.status === 'paid' ? 'Lunas' : 'Belum dibayar',
+      'Tanggal Dibayar': p.paid_at || ''
+    }));
+
+    const workbook = XLSX.utils.book_new();
+
+    const sheets = [
+      ['Harian', detailRows],
+      ['Mingguan', makeSummary('week')],
+      ['Bulanan', makeSummary('month')],
+      ['Pembayaran', paymentRows]
+    ];
+
+    sheets.forEach(([name, rows]) => {
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, name);
+    });
+
+    XLSX.writeFile(workbook, 'Laporan_Borongan.xlsx');
+    setNotice('Berhasil membuat file Excel!');
+  } catch (err) {
+    setError('Gagal membuat Excel: ' + err.message);
+  }
+}
+
  const paymentRange=(()=>{const d=new Date(paymentDate+'T00:00:00');const start=new Date(d);start.setDate(d.getDate()-((d.getDay()+6)%7));const end=new Date(start);end.setDate(start.getDate()+6);const fmt=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');return {start:fmt(start),end:fmt(end)};})();
  async function loadPayments(){
   if(!supabase||!session)return;
