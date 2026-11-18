@@ -13,6 +13,7 @@ const blank = {work_date:new Date().toISOString().slice(0,10),work_type:'lining'
 
 function App(){
  const [session,setSession]=useState(null),[profile,setProfile]=useState(null),[email,setEmail]=useState(''),[password,setPassword]=useState('');
+const [registerMode,setRegisterMode]=useState(false),[registerName,setRegisterName]=useState('');
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [rows,setRows]=useState([]),[members,setMembers]=useState([]),[form,setForm]=useState(blank),[editing,setEditing]=useState(null);
  const [priceDrafts,setPriceDrafts]=useState({}),[savingPrice,setSavingPrice]=useState({});
@@ -214,6 +215,34 @@ async function preparePayments(){
  // Perbarui daftar laporan otomatis setiap 10 detik agar laporan anggota baru segera terlihat.
  useEffect(()=>{if(!session||!profile||!admin)return;const timer=setInterval(()=>loadRows(true),10000);return ()=>clearInterval(timer);},[session,profile,admin,filter,memberFilter]);
  async function login(e){e.preventDefault();setBusy(true);setError('');const {error}=await supabase.auth.signInWithPassword({email,password});if(error)setError(error.message);setBusy(false);}
+ async function register(e){
+  e.preventDefault();
+  setBusy(true);
+  setError('');
+  setNotice('');
+
+  const {error}=await supabase.auth.signUp({
+    email,
+    password,
+    options:{
+      data:{
+        display_name:registerName.trim()
+      }
+    }
+  });
+
+  if(error){
+    setError(error.message);
+  }else{
+    setNotice('Pendaftaran berhasil! Akun Anda menunggu persetujuan admin.');
+    setRegisterMode(false);
+    setRegisterName('');
+    setEmail('');
+    setPassword('');
+  }
+
+  setBusy(false);
+}
  async function logout(){await supabase.auth.signOut();setProfile(null);setSession(null);}
  function newReport(){setEditing(null);setForm(blank);}
  function editReport(r){setEditing(r.id);setForm({...r,bag_count:String(r.bag_count),unit_price:r.unit_price??''});window.scrollTo({top:0,behavior:'smooth'});}
@@ -243,7 +272,18 @@ async function preparePayments(){
  const recapList=Object.values(recap).sort((a,b)=>b.total-a.total);
  if(!supabase)return <Setup/>;
  if(loading)return <div className="center">Memuat website…</div>;
- if(!session)return <main className="login"><div className="loginbox"><div className="brandmark"><BriefcaseBusiness/></div><p className="eyebrow">SISTEM LAPORAN BORONGAN</p><h1>Selamat datang</h1><p className="muted">Masuk untuk mengisi dan mengelola laporan pekerjaan.</p><form onSubmit={login}><label>Email</label><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="nama@email.com"/><label>Password</label><input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"/><button className="primary full" disabled={busy}>{busy?'Memproses…':'Masuk'}</button></form>{error&&<p className="error">{error}</p>}<p className="tiny">Akun dibuat oleh admin. Tidak ada pendaftaran publik.</p></div></main>;
+ 
+if(!session)return <main className="login"><div className="loginbox"><div className="brandmark"><BriefcaseBusiness/></div><p className="eyebrow">SISTEM LAPORAN BORONGAN</p><h1>{registerMode?'Daftar Anggota':'Selamat datang'}</h1><p className="muted">{registerMode?'Buat akun anggota baru. Akun akan menunggu persetujuan admin.':'Masuk untuk mengisi dan mengelola laporan pekerjaan.'}</p><form onSubmit={registerMode?register:login}>
+{registerMode&&<><label>Nama lengkap</label><input required value={registerName} onChange={e=>setRegisterName(e.target.value)} placeholder="Nama lengkap"/></>}
+<label>Email</label><input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="nama@email.com"/>
+<label>Password</label><input type="password" required minLength="6" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password"/>
+<button className="primary full" disabled={busy}>{busy?'Memproses…':registerMode?'Daftar Sekarang':'Masuk'}</button>
+</form>
+{error&&<p className="error">{error}</p>}
+{notice&&<p className="success">{notice}</p>}
+<button className="outline full" style={{marginTop:12}} onClick={()=>{setRegisterMode(!registerMode);setError('');setNotice('');}}>{registerMode?'Kembali ke Login':'Daftar Anggota Baru'}</button>
+</div></main>;
+</p></div></main>;
  return <div className="app"><header><div className="brand"><div className="brandmark small"><BriefcaseBusiness/></div><div><b>Sistem Laporan Borongan</b><small>Pengelolaan pekerjaan & hasil borongan</small></div></div><div className="user"><span>{profile?.display_name||session.user.email}<small>{admin?'Administrator':'Anggota Borongan'}</small></span><button className="iconbtn" onClick={logout} title="Keluar"><LogOut size={18}/></button></div></header>
  <main className="content"><div className="welcome"><div><p className="eyebrow">{admin?'PANEL ADMIN':'PANEL ANGGOTA'}</p><h1>{admin?'Dashboard Admin':'Laporan Pekerjaan'}</h1><p className="muted">{admin?'Kontrol anggota, harga, dan seluruh laporan borongan.':'Isi laporan pekerjaan borongan Anda di bawah ini.'}</p></div><button className="outline" onClick={()=>loadRows(admin)}><RefreshCw size={16}/> Perbarui</button></div>
  {error&&<div className="alert error">{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}{notice&&<div className="alert success">{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}
