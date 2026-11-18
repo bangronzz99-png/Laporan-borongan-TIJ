@@ -283,7 +283,6 @@ if(!session)return <main className="login"><div className="loginbox"><div classN
 {notice&&<p className="success">{notice}</p>}
 <button className="outline full" style={{marginTop:12}} onClick={()=>{setRegisterMode(!registerMode);setError('');setNotice('');}}>{registerMode?'Kembali ke Login':'Daftar Anggota Baru'}</button>
 </div></main>;
-</p></div></main>;
  return <div className="app"><header><div className="brand"><div className="brandmark small"><BriefcaseBusiness/></div><div><b>Sistem Laporan Borongan</b><small>Pengelolaan pekerjaan & hasil borongan</small></div></div><div className="user"><span>{profile?.display_name||session.user.email}<small>{admin?'Administrator':'Anggota Borongan'}</small></span><button className="iconbtn" onClick={logout} title="Keluar"><LogOut size={18}/></button></div></header>
  <main className="content"><div className="welcome"><div><p className="eyebrow">{admin?'PANEL ADMIN':'PANEL ANGGOTA'}</p><h1>{admin?'Dashboard Admin':'Laporan Pekerjaan'}</h1><p className="muted">{admin?'Kontrol anggota, harga, dan seluruh laporan borongan.':'Isi laporan pekerjaan borongan Anda di bawah ini.'}</p></div><button className="outline" onClick={()=>loadRows(admin)}><RefreshCw size={16}/> Perbarui</button></div>
  {error&&<div className="alert error">{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}{notice&&<div className="alert success">{notice}<button onClick={()=>setNotice('')}><X size={15}/></button></div>}
