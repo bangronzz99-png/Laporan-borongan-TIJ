@@ -309,20 +309,7 @@ async function sendToSheets(sheet, headers, rowsToSend) {
     <ShieldCheck size={16}/>
     {paymentBusy?'Menyiapkan…':'Siapkan Tagihan Minggu Ini'}
   </button>
-  <button className="outline" onClick={()=>sendToSheets(
-    'Pembayaran',
-    ['Tanggal Mulai','Tanggal Selesai','Nama Anggota','Total Upah','Status','Tanggal Dibayar'],
-    paymentRows.map(p=>[
-      paymentRange.start,
-      paymentRange.end,
-      p.profiles?.display_name||'Anggota',
-      p.total_amount,
-      p.status==='paid'?'Lunas':'Belum dibayar',
-      p.paid_at||''
-    ])
-  )}>
-    Kirim Riwayat Pembayaran
-  </button>
+
 </div>}
 <div className="tablewrap"><table><thead><tr>{admin&&<th>Anggota</th>}<th>Total upah</th><th>Status</th><th>Tanggal dibayar</th>{admin&&<th>Aksi</th>}</tr></thead><tbody>{paymentRows.map(p=><tr key={p.id}>{admin&&<td>{p.profiles?.display_name||'Anggota'}</td>}<td>{money(p.total_amount)}</td><td><span className={p.status==='paid'?'status on':'status off'}>{p.status==='paid'?'Lunas':'Belum dibayar'}</span></td><td>{p.paid_at?new Date(p.paid_at).toLocaleString('id-ID'):'—'}</td>{admin&&<td>{p.status==='paid'?<button className="outline smallbtn" onClick={()=>markPayment(p,'unpaid')}>Batalkan lunas</button>:<button className="primary smallbtn" onClick={()=>markPayment(p,'paid')}>Tandai lunas</button>}</td>}</tr>)}{!paymentRows.length&&<tr><td colSpan={admin?5:3} className="empty">{admin?'Belum ada tagihan untuk minggu ini. Klik Siapkan Tagihan Minggu Ini.':'Belum ada data pembayaran untuk minggu ini.'}</td></tr>}</tbody></table></div>{!admin&&<p className="tiny">Jika status masih Belum dibayar, silakan hubungi admin untuk konfirmasi pembayaran.</p>}</section>}
   <section className="panel">
