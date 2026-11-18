@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import * as XLSX from 'xlsx';
 import {createRoot} from 'react-dom/client';
 import {createClient} from '@supabase/supabase-js';
 import {BriefcaseBusiness, LogOut, Plus, RefreshCw, Printer, Pencil, Trash2, Users, ClipboardList, ShieldCheck, X, Save, LockKeyhole} from 'lucide-react';
