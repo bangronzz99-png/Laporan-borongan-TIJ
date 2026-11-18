@@ -50,16 +50,19 @@ async function exportToExcel() {
 
     if (paymentError) throw paymentError;
 
-    const detailRows = (reports || []).map(r => ({
-      Tanggal: r.work_date,
-      'Nama Anggota': r.profiles?.display_name || 'Anggota',
-      'Jumlah Tas': Number(r.bag_count || 0),
-      'Harga Satuan': r.unit_price ?? '',
-      'Total Upah': r.unit_price == null
-        ? 0
-        : Number(r.bag_count || 0) * Number(r.unit_price || 0),
-      Status: r.unit_price == null ? 'Harga belum diisi' : 'Sudah dihargai'
-    }));
+    
+const detailRows = (reports || []).map(r => ({
+  Tanggal: r.work_date,
+  'Nama Anggota': r.profiles?.display_name || 'Anggota',
+  'Komponen yang Dikerjakan': r.component || '',
+  'Jumlah Tas': Number(r.bag_count || 0),
+  'Harga Satuan': r.unit_price ?? '',
+  'Total Upah': r.unit_price == null
+    ? 0
+    : Number(r.bag_count || 0) * Number(r.unit_price || 0),
+  Status: r.unit_price == null ? 'Harga belum diisi' : 'Sudah dihargai'
+}));
+
 
     function makeSummary(period) {
       const grouped = {};
