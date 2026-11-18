@@ -293,19 +293,11 @@ async function sendToSheets(sheet, headers, rowsToSend) {
  <section className="panel"><div className="panelhead wrap"><div><h2>Riwayat laporan</h2><p className="muted">{admin?'Isi harga langsung pada kolom Harga; tersimpan otomatis saat kolom ditinggalkan.':'Laporan yang Anda kirim'}</p></div><button className="outline" onClick={()=>window.print()}><Printer size={16}/> Cetak</button></div><div className="filters"><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">Semua pekerjaan</option><option value="lining">Linning / Tas Jadi</option><option value="cat">Pengecatan Cat</option></select>{admin&&<select value={memberFilter} onChange={e=>setMemberFilter(e.target.value)}><option value="all">Semua anggota</option>{members.map(m=><option key={m.id} value={m.id}>{m.display_name||m.email}</option>)}</select>}</div><div className="tablewrap"><table><thead><tr>{admin&&<th>Anggota</th>}<th>Tanggal</th><th>Jenis</th><th>Artikel</th><th>Komponen yang dikerjakan</th><th>Jumlah tas</th><th>Harga</th><th>Total</th><th>Aksi</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{admin&&<td>{r.profiles?.display_name||'Anggota'}</td>}<td>{new Date(r.work_date+'T00:00:00').toLocaleDateString('id-ID')}</td><td>{r.work_type==='lining'?'Linning / Tas Jadi':'Pengecatan Cat'}</td><td>{r.article}</td><td>{r.component}</td><td>{r.bag_count}</td><td>{admin?<div className="inline-price"><input aria-label={'Harga untuk '+(r.article||'laporan')} type="number" min="0" step="1" placeholder="Isi harga" style={{width:"120px",padding:"8px",border:"1px solid #cbd5e1",borderRadius:"8px"}} value={priceDrafts[r.id]!==undefined?priceDrafts[r.id]:(r.unit_price??'')} onChange={e=>setPriceDrafts(prev=>({...prev,[r.id]:e.target.value}))} onBlur={()=>saveInlinePrice(r.id)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}} />{savingPrice[r.id]&&<small>Menyimpan…</small>}</div>:(r.unit_price==null?'Menunggu admin':money(r.unit_price))}</td><td>{r.unit_price==null?'—':money(r.bag_count*r.unit_price)}</td><td><div className="actions"><button className="iconbtn" onClick={()=>editReport(r)} title="Edit"><Pencil size={15}/></button><button className="iconbtn danger" onClick={()=>removeReport(r.id)} title="Hapus"><Trash2 size={15}/></button></div></td></tr>)}{!rows.length&&<tr><td colSpan={admin?9:8} className="empty">Belum ada laporan.</td></tr>}</tbody></table></div></section></>}
  {admin&&tab==='recap'&&<><section className="panel"><div className="panelhead wrap"><div><h2>Rekap Borongan Anggota</h2><p className="muted">Ringkasan jumlah pekerjaan dan upah berdasarkan periode.</p></div>
 <>
-  {admin&&<button className="primary" onClick={()=>sendToSheets(
-    recapPeriod==='day'?'Harian':recapPeriod==='week'?'Mingguan':'Bulanan',
-    ['Tanggal Mulai','Tanggal Selesai','Nama Anggota','Jumlah Laporan','Jumlah Tas','Total Upah','Harga Belum Diisi'],
-    recapList.map(r=>[
-      recapRange.start,
-      recapRange.end,
-      r.name,
-      r.reports,
-      r.bags,
-      r.total,
-      r.unpriced
-    ])
-  )}>Kirim ke Google Sheets</button>}
+
+{admin&&<button className="primary" onClick={exportToExcel}>
+  Download Excel (.xlsx)
+</button>}
+
   <button className="outline" onClick={loadRecap}>
     <RefreshCw size={16}/> Perbarui
   </button>
