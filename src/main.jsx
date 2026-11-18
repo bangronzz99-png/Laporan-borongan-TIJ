@@ -64,67 +64,84 @@ const detailRows = (reports || []).map(r => ({
 }));
 
 
-    function makeSummary(period) {
-      const grouped = {};
 
-      (reports || []).forEach(r => {
-        const date = new Date(`${r.work_date}T00:00:00Z`);
-        let start, end, key;
+function makeSummary(period) {
+  const grouped = {};
 
-        if (period === 'week') {
-          const monday = new Date(Date.UTC(
-            date.getUTCFullYear(),
-            date.getUTCMonth(),
-            date.getUTCDate()
-          ));
-          const day = monday.getUTCDay();
-          monday.setUTCDate(monday.getUTCDate() - (day === 0 ? 6 : day - 1));
+  (reports || []).forEach(r => {
+    const date = new Date(`${r.work_date}T00:00:00Z`);
+    let start, end, key;
 
-          const sunday = new Date(monday);
-          sunday.setUTCDate(sunday.getUTCDate() + 6);
+    if (period === 'week') {
+      const monday = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate()
+      ));
+      const day = monday.getUTCDay();
+      monday.setUTCDate(monday.getUTCDate() - (day === 0 ? 6 : day - 1));
 
-          start = monday.toISOString().slice(0, 10);
-          end = sunday.toISOString().slice(0, 10);
-          key = start;
-        } else {
-          const year = date.getUTCFullYear();
-          const month = date.getUTCMonth();
+      const sunday = new Date(monday);
+      sunday.setUTCDate(sunday.getUTCDate() + 6);
 
-          start = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-          end = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
-          key = start;
-        }
+      start = monday.toISOString().slice(0, 10);
+      end = sunday.toISOString().slice(0, 10);
+      key = start;
+    } else {
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth();
 
-        const memberId = r.created_by || 'unknown';
-        const name = r.profiles?.display_name || 'Anggota';
-        const groupKey = `${key}_${memberId}`;
-
-        if (!grouped[groupKey]) {
-          grouped[groupKey] = {
-            'Tanggal Mulai': start,
-            'Tanggal Selesai': end,
-            'Nama Anggota': name,
-            'Jumlah Laporan': 0,
-            'Jumlah Tas': 0,
-            'Total Upah': 0,
-            'Harga Belum Diisi': 0
-          };
-        }
-
-        const item = grouped[groupKey];
-        item['Jumlah Laporan']++;
-        item['Jumlah Tas'] += Number(r.bag_count || 0);
-
-        if (r.unit_price == null) {
-          item['Harga Belum Diisi']++;
-        } else {
-          item['Total Upah'] +=
-            Number(r.bag_count || 0) * Number(r.unit_price || 0);
-        }
-      });
-
-      return Object.values(grouped);
+      start = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+      end = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
+      key = start;
     }
+
+    const memberId = r.created_by || 'unknown';
+    const name = r.profiles?.display_name || 'Anggota';
+    const groupKey = `${key}_${memberId}`;
+
+    if (!grouped[groupKey]) {
+      grouped[groupKey] = {
+        'Tanggal Mulai': start,
+        'Tanggal Selesai': end,
+        'Nama Anggota': name,
+        'Komponen yang Dikerjakan': [],
+        'Jumlah Laporan': 0,
+        'Jumlah Tas': 0,
+        'Total Upah': 0,
+        'Harga Belum Diisi': 0
+      };
+    }
+
+    const item = grouped[groupKey];
+
+    item['Jumlah Laporan']++;
+    item['Jumlah Tas'] += Number(r.bag_count || 0);
+
+    const component = (r.component || '').trim();
+
+    if (
+      component &&
+      !item['Komponen yang Dikerjakan'].includes(component)
+    ) {
+      item['Komponen yang Dikerjakan'].push(component);
+    }
+
+    if (r.unit_price == null) {
+      item['Harga Belum Diisi']++;
+    } else {
+      item['Total Upah'] +=
+        Number(r.bag_count || 0) * Number(r.unit_price || 0);
+    }
+  });
+
+  return Object.values(grouped).map(item => ({
+    ...item,
+    'Komponen yang Dikerjakan':
+      item['Komponen yang Dikerjakan'].join(', ')
+  }));
+}
+
 
     const paymentRows = (payments || []).map(p => ({
       'Tanggal Mulai': p.week_start,
